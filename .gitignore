@@ -14,8 +14,9 @@
 # JetBrains
 .idea
 
-# Go Binaries
+# Go Binaries and vendors
 cmd/sftp_app/sftp_app
+vendor
 
 # Env files
 cmd/sftp_app/.env

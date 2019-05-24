@@ -13,38 +13,38 @@ import (
 
 // Manager SFTP connections structure
 type SFTPManager struct {
-	host string
-	port uint32
-	user string
-	password string
-	Conns []*SFTPConn
-	log *log.Logger
+	host      string
+	port      uint32
+	user      string
+	password  string
+	Conns     []*SFTPWrapper
+	log       *log.Logger
 	sshConfig *ssh.ClientConfig
 }
 
 // SFTP connection (with clients)
-type SFTPConn struct {
+type SFTPWrapper struct {
 	sync.Mutex
 	connection *ssh.Client
-	Client *sftp.Client
-	shutdown chan bool
-	closed bool
+	Client     *sftp.Client
+	shutdown   chan bool
+	closed     bool
 	reconnects uint64
 }
 
 // SFTPConn Construct
-func NewSFTPConn(sshClient *ssh.Client, sftpClient *sftp.Client) *SFTPConn {
-	return &SFTPConn {
+func NewSFTPWrapper(sshClient *ssh.Client, sftpClient *sftp.Client) *SFTPWrapper {
+	return &SFTPWrapper{
 		connection: sshClient,
-		Client: sftpClient,
-		shutdown: make(chan bool, 1),
-		closed: false,
+		Client:     sftpClient,
+		shutdown:   make(chan bool, 1),
+		closed:     false,
 		reconnects: 0,
 	}
 }
 
 // SFTPConn Close connection => chan notify ssh connection to close
-func(s *SFTPConn) Close() error {
+func (s *SFTPWrapper) Close() error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed == true {
@@ -63,29 +63,29 @@ func(s *SFTPConn) Close() error {
 // SFTPManager Construct
 func NewSFTPManager(host string, port uint32, user string, password string) *SFTPManager {
 	config := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod {ssh.Password(password)},
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.Password(password)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout: 2 * time.Second,
+		Timeout:         2 * time.Second,
 	}
 	return &SFTPManager{
-		host: host,
-		port: port,
-		user: user,
-		password: password,
-		Conns: make([]*SFTPConn, 0),
+		host:      host,
+		port:      port,
+		user:      user,
+		password:  password,
+		Conns:     make([]*SFTPWrapper, 0),
 		sshConfig: config,
-		log: log.New(os.Stdout, "SFTPManager", log.Ldate|log.Ltime|log.Lshortfile),
+		log:       log.New(os.Stdout, "SFTPManager", log.Ldate|log.Ltime|log.Lshortfile),
 	}
 }
 
 // Add SFTPConn to Manager
-func (sm *SFTPManager) AddClient() (*SFTPConn, error) {
+func (sm *SFTPManager) AddClient() (*SFTPWrapper, error) {
 	sshConn, sftpConn := sm.newConnections()
-	sftpStrut := &SFTPConn{
+	sftpStrut := &SFTPWrapper{
 		connection: sshConn,
-		Client: sftpConn,
-		shutdown: make(chan bool, 1),
+		Client:     sftpConn,
+		shutdown:   make(chan bool, 1),
 	}
 	go sm.reconnect(sftpStrut)
 	sm.Conns = append(sm.Conns, sftpStrut)
@@ -108,7 +108,7 @@ func (sm *SFTPManager) newConnections() (*ssh.Client, *sftp.Client) {
 }
 
 // Private method to handle reconnect on error / close / timeout
-func (sm *SFTPManager) reconnect(c *SFTPConn) {
+func (sm *SFTPManager) reconnect(c *SFTPWrapper) {
 	closed := make(chan error, 1)
 	go func() {
 		closed <- c.connection.Wait()

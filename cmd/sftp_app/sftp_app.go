@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
+	"funicular/pkg/clients"
 	"github.com/joho/godotenv"
-	"os"
-	"sftp_poc/pkg/clients"
 	"log"
+	"os"
 	"strconv"
 	"time"
 )
@@ -18,8 +18,8 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 	var port uint32
-	if bar, err := strconv.Atoi(os.Getenv("INTRA_PORT")); err == nil {
-		port = uint32(bar)
+	if portInt, err := strconv.Atoi(os.Getenv("INTRA_PORT")); err == nil {
+		port = uint32(portInt)
 	}
 	sftpManager := clients.NewSFTPManager(
 		os.Getenv("INTRA_HOST"),
@@ -42,7 +42,6 @@ func main() {
 			files <- dir
 			time.Sleep(3 * time.Second)
 		}
-		fmt.Print("OK")
 	}()
 	var counter int
 	for {
