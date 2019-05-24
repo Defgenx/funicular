@@ -10,3 +10,12 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+# JetBrains
+.idea
+
+# Go Binaries
+cmd/sftp_app/sftp_app
+
+# Env files
+cmd/sftp_app/.env
