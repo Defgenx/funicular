@@ -37,7 +37,7 @@ func NewSFTPWrapper(sshClient *ssh.Client, sftpClient *sftp.Client) *SFTPWrapper
 	return &SFTPWrapper{
 		connection: sshClient,
 		Client:     sftpClient,
-		shutdown:   make(chan bool, 1),
+		shutdown:   make(chan bool, 0),
 		closed:     false,
 		reconnects: 0,
 	}
@@ -50,7 +50,7 @@ func (s *SFTPWrapper) Close() error {
 	if s.closed == true {
 		return fmt.Errorf("Connection was already closed")
 	}
-	err := s.Client.Close()
+	var err = s.Client.Close()
 	if err != nil {
 		log.Fatalf("unable to close ftp connection: %v", err)
 	} else {
@@ -82,11 +82,7 @@ func NewSFTPManager(host string, port uint32, user string, password string) *SFT
 // Add SFTPConn to Manager
 func (sm *SFTPManager) AddClient() (*SFTPWrapper, error) {
 	sshConn, sftpConn := sm.newConnections()
-	sftpStrut := &SFTPWrapper{
-		connection: sshConn,
-		Client:     sftpConn,
-		shutdown:   make(chan bool, 1),
-	}
+	sftpStrut := NewSFTPWrapper(sshConn, sftpConn)
 	go sm.reconnect(sftpStrut)
 	sm.Conns = append(sm.Conns, sftpStrut)
 	return sftpStrut, nil
