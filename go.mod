@@ -4,6 +4,8 @@ go 1.12
 
 require (
 	github.com/aws/aws-sdk-go v1.19.37
+	github.com/fsnotify/fsnotify v1.4.7
+	github.com/go-redis/redis v6.15.2+incompatible
 	github.com/joho/godotenv v1.3.0
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/pkg/errors v0.8.1 // indirect

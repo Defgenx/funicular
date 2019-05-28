@@ -16,7 +16,8 @@
 
 # Go Binaries and vendors
 cmd/sftp_app/sftp_app
+cmd/s3_app/s3_app
 vendor
 
 # Env files
-cmd/sftp_app/.env
+cmd/**/.env
