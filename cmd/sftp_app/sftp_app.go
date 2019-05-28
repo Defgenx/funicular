@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"funicular/pkg/clients"
+	funiRedis "funicular/pkg/clients/redis"
+	funiSftp "funicular/pkg/clients/sftp"
 	"github.com/go-redis/redis"
 	"github.com/joho/godotenv"
 	"github.com/pkg/sftp"
@@ -30,7 +31,7 @@ func main() {
 		if portInt, err := strconv.Atoi(os.Getenv("INTRA_PORT")); err == nil {
 			port = uint32(portInt)
 		}
-		sftpManager := clients.NewSFTPManager(
+		sftpManager := funiSftp.NewSFTPManager(
 			os.Getenv("INTRA_HOST"),
 			port,
 			os.Getenv("INTRA_USER"),
@@ -73,8 +74,8 @@ func main() {
 
 	redisPort, _ := strconv.Atoi(os.Getenv("REDIS_PORT"))
 	redisDb, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
-	redisCli := clients.NewRedisClient(
-		clients.RedisConfig{
+	redisCli := funiRedis.NewWrapper(
+		funiRedis.Config{
 			Host: os.Getenv("REDIS_HOST"),
 			Port: uint16(redisPort),
 			DB:   uint8(redisDb),

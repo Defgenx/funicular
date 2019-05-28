@@ -1,7 +1,8 @@
 package main
 
 import (
-	"funicular/pkg/clients"
+	funiAWS "funicular/pkg/clients/aws"
+	funiRedis "funicular/pkg/clients/redis"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/go-redis/redis"
@@ -28,8 +29,8 @@ func main() {
 	go func() {
 		redisPort, _ := strconv.Atoi(os.Getenv("REDIS_PORT"))
 		redisDb, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
-		redisCli := clients.NewRedisClient(
-			clients.RedisConfig{
+		redisCli := funiRedis.NewWrapper(
+			funiRedis.Config{
 				Host: os.Getenv("REDIS_HOST"),
 				Port: uint16(redisPort),
 				DB:   uint8(redisDb),
@@ -64,7 +65,7 @@ func main() {
 		}
 	}()
 
-	awsManager := clients.NewAWSManager(uint8(3))
+	awsManager := funiAWS.NewAWSManager(uint8(3))
 	s3Bucket := awsManager.S3Manager.AddS3BucketManager()
 
 	for {

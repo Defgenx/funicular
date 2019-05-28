@@ -1,4 +1,4 @@
-package clients
+package redis
 
 import (
 	"github.com/go-redis/redis"
@@ -7,44 +7,44 @@ import (
 	"strconv"
 )
 
-type RedisManager struct {
-	Clients []*RedisWrapper
+type Manager struct {
+	Clients []*Wrapper
 }
 
-type RedisWrapper struct {
+type Wrapper struct {
 	Client *redis.Client
-	config *RedisConfig
+	config *Config
 }
 
-type RedisConfig struct {
+type Config struct {
 	Host string
 	Port uint16
 	DB uint8
 }
 
 
-func NewRedisClient(config RedisConfig) *RedisWrapper {
+func NewWrapper(config Config) *Wrapper {
 	client := redis.NewClient(config.ToOption())
-	return &RedisWrapper{
+	return &Wrapper{
 		Client: client,
 		config: &config,
 	}
 }
 
-func NewRedisManager() *RedisManager {
-	return &RedisManager{
-		Clients: make([]*RedisWrapper, 0),
+func NewManager() *Manager {
+	return &Manager{
+		Clients: make([]*Wrapper, 0),
 	}
 }
 
-func (rw *RedisManager) AddClient(config RedisConfig) *RedisWrapper {
-	client := NewRedisClient(config)
+func (rw *Manager) AddClient(config Config) *Wrapper {
+	client := NewWrapper(config)
 	rw.Clients = append(rw.Clients, client)
 	return client
 }
 
-func (rw *RedisManager) Close() {
-	var manageClientsCopy []*RedisWrapper
+func (rw *Manager) Close() {
+	var manageClientsCopy []*Wrapper
 	copy(manageClientsCopy, rw.Clients)
 	for _, client := range manageClientsCopy {
 		err := client.Client.Close()
@@ -55,7 +55,7 @@ func (rw *RedisManager) Close() {
 	}
 }
 
-func (rc *RedisConfig) ToOption() *redis.Options {
+func (rc *Config) ToOption() *redis.Options {
 	return &redis.Options{
 		Addr: net.JoinHostPort(rc.Host, strconv.Itoa(int(rc.Port))),
 		DB: int(rc.DB),
