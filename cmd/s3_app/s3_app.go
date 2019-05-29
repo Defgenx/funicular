@@ -4,7 +4,6 @@ import (
 	funiAWS "funicular/pkg/clients/aws"
 	funiRedis "funicular/pkg/clients/redis"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/go-redis/redis"
 	"github.com/joho/godotenv"
 	"log"
@@ -35,6 +34,7 @@ func main() {
 				Port: uint16(redisPort),
 				DB:   uint8(redisDb),
 			},
+			STREAM,
 		)
 		defer func() {
 			err := redisCli.Client.Close()
@@ -47,14 +47,17 @@ func main() {
 			for {
 				select {
 				case filename := <-s3Chan:
-					redisCli.Client.XDel(STREAM, filename)
+					_, err := redisCli.DeleteMessages(filename)
+					if err != nil {
+						log.Fatalf("failed to delete stream message: %v", err)
+					}
 					log.Printf("File message stream deleted for ID: %s", filename)
 				}
 			}
 		}()
 
 		for {
-			vals, err := redisCli.Client.XRange(STREAM, "-", "+").Result()
+			vals, err := redisCli.ReadRangeMessage("-", "+")
 			if err != nil {
 				log.Fatalf("failed to read redis stream: %v", err)
 			}
@@ -66,17 +69,16 @@ func main() {
 	}()
 
 	awsManager := funiAWS.NewAWSManager(uint8(3))
-	s3Bucket := awsManager.S3Manager.AddS3BucketManager()
+	s3Bucket := awsManager.S3Manager.AddS3BucketManager(BUCKET_NAME)
 
 	for {
 		select {
 		case fileData := <-fileChan:
-			upParams := &s3manager.UploadInput{
-				Bucket: aws.String(BUCKET_NAME),
-				Key:    aws.String(STORE_PATH + fileData.Values["filename"].(string)),
-				Body:   strings.NewReader(fileData.Values["fileData"].(string)),
-			}
-			result, err := s3Bucket.Uploader.Upload(upParams)
+			result, err := s3Bucket.UploadFile(
+				STORE_PATH,
+				fileData.Values["filename"].(string),
+				strings.NewReader(fileData.Values["fileData"].(string)),
+				)
 			if err != nil {
 				log.Fatalf("failed to upload file, %v", err)
 			}

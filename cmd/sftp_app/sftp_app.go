@@ -4,7 +4,6 @@ import (
 	"fmt"
 	funiRedis "funicular/pkg/clients/redis"
 	funiSftp "funicular/pkg/clients/sftp"
-	"github.com/go-redis/redis"
 	"github.com/joho/godotenv"
 	"github.com/pkg/sftp"
 	"io/ioutil"
@@ -80,6 +79,7 @@ func main() {
 			Port: uint16(redisPort),
 			DB:   uint8(redisDb),
 		},
+		STREAM,
 	)
 	defer func() {
 		err := redisCli.Client.Close()
@@ -97,11 +97,11 @@ func main() {
 			if err != nil {
 				log.Fatalf("Cannot read file data %s #%v", fileMap["fileInfo"].(os.FileInfo).Name(), err)
 			}
-			xAddArgs := &redis.XAddArgs{
-				Stream: STREAM,
-				Values: map[string]interface{}{"filename": fileMap["fileInfo"].(os.FileInfo).Name(), "fileData": fByteData},
+			msgData := map[string]interface{}{"filename": fileMap["fileInfo"].(os.FileInfo).Name(), "fileData": fByteData}
+			_, err = redisCli.SendStreamMessage(msgData)
+			if err != nil {
+				log.Fatalf("Cannot send message %v", err)
 			}
-			redisCli.Client.XAdd(xAddArgs)
 		}
 	}
 }

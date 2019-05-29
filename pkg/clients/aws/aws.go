@@ -5,6 +5,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"io"
 	"log"
 	"os"
 )
@@ -45,23 +46,35 @@ func NewS3Manager(config *aws.Config) *S3Manager {
 	}
 }
 
-func (s3m *S3Manager) AddS3BucketManager() *S3Wrapper {
-	s3Wrapper := NewS3Wrapper(s3m.session)
+func (s3m *S3Manager) AddS3BucketManager(bucketName string) *S3Wrapper {
+	s3Wrapper := NewS3Wrapper(bucketName, s3m.session)
 	s3m.S3Conns = append(s3m.S3Conns, s3Wrapper)
 	return s3Wrapper
 }
 
 // S3 Adapter
 type S3Wrapper struct {
+	bucketName string
 	Uploader   *s3manager.Uploader
 	Downloader *s3manager.Downloader
 }
 
-func NewS3Wrapper(s3Session *session.Session) *S3Wrapper {
+func NewS3Wrapper(bucketName string, s3Session *session.Session) *S3Wrapper {
 	uploader := s3manager.NewUploader(s3Session)
 	downloader := s3manager.NewDownloader(s3Session)
 	return &S3Wrapper{
+		bucketName: bucketName,
 		Uploader: uploader,
 		Downloader: downloader,
 	}
+}
+
+func (s3w *S3Wrapper) UploadFile(path string, filename string, data io.Reader) (*s3manager.UploadOutput, error) {
+	upParams := &s3manager.UploadInput{
+		Bucket: aws.String(s3w.bucketName),
+		Key:    aws.String(path + filename),
+		Body:   data,
+	}
+	result, err := s3w.Uploader.Upload(upParams)
+	return result, err
 }
