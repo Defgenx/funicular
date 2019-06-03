@@ -1,11 +1,11 @@
 package main
 
 import (
+	"github.com/defgenx/funicular/internal/utils"
 	"github.com/defgenx/funicular/pkg/clients"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-redis/redis"
-	"github.com/joho/godotenv"
 	"log"
 	"os"
 	"strconv"
@@ -19,10 +19,7 @@ const BUCKET_NAME = "development-buyco-app-uploads"
 const STORE_PATH = "/outbound/test/"
 
 func main() {
-	err := godotenv.Load(ENV_DIR)
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	utils.LoadEnvFile(ENV_DIR, os.Getenv("ENV"))
 
 	fileChan := make(chan redis.XMessage)
 	s3Chan := make(chan string)

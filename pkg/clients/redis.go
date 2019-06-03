@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"github.com/defgenx/funicular/internal/utils"
 	"github.com/go-redis/redis"
 	"log"
 	"net"
@@ -141,9 +142,6 @@ func (w *RedisWrapper) AckMessage(group string, ids ...string) (int64, error) {
 }
 
 func copyRedisClients(originalMap map[string][]*RedisWrapper) map[string][]*RedisWrapper {
-	var newMap = make(map[string][]*RedisWrapper)
-	for k,v := range originalMap {
-		newMap[k] = v
-	}
-	return newMap
+	newMap, _ := utils.CopyMap(originalMap)
+	return newMap.(map[string][]*RedisWrapper)
 }

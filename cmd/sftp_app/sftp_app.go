@@ -1,10 +1,10 @@
 package main
 
 import (
+	"github.com/defgenx/funicular/internal/utils"
 	"github.com/defgenx/funicular/pkg/clients"
 
 	"fmt"
-	"github.com/joho/godotenv"
 	"github.com/pkg/sftp"
 	"io/ioutil"
 	"log"
@@ -19,12 +19,9 @@ const STREAM = "intra-new-outbound-vgm"
 const OUTBOUND_VGM_DIR = "./outbound/vgm/"
 
 func main() {
-	err := godotenv.Load(ENV_DIR)
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-	fileChan := make(chan map[string]interface{})
+	utils.LoadEnvFile(ENV_DIR, os.Getenv("ENV"))
 
+	fileChan := make(chan map[string]interface{})
 	go func() {
 		var port uint32
 		if portInt, err := strconv.Atoi(os.Getenv("INTRA_PORT")); err == nil {
