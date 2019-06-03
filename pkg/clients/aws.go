@@ -29,6 +29,7 @@ func NewAWSManager(maxRetries uint8) *AWSManager {
 	}
 }
 
+//------------------------------------------------------------------------------
 
 type S3Manager struct {
 	session    *session.Session
@@ -51,6 +52,8 @@ func (s3m *S3Manager) AddS3BucketManager(bucketName string) *S3Wrapper {
 	s3m.S3Conns = append(s3m.S3Conns, s3Wrapper)
 	return s3Wrapper
 }
+
+//------------------------------------------------------------------------------
 
 // S3 Adapter
 type S3Wrapper struct {

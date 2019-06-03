@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/defgenx/funicular/internal/utils"
 	"github.com/defgenx/funicular/pkg/clients"
+	"github.com/defgenx/funicular/internal/utils"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-redis/redis"
@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const ENV_DIR = ".env"
+const ENV_DIR = "../../.env"
 const STREAM = "intra-new-outbound-vgm"
 const BUCKET_NAME = "development-buyco-app-uploads"
 const STORE_PATH = "/outbound/test/"

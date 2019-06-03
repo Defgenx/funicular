@@ -1,0 +1,17 @@
+language: go
+
+go:
+  - 1.11.x
+  - 1.12.x
+  - gotip
+
+env:
+  - GO111MODULE=on
+
+install:
+  - go get ./...
+  - go get github.com/onsi/gomega
+  - go install github.com/onsi/ginkgo/ginkgo
+  - export PATH=$PATH:$HOME/gopath/bin
+
+script: $HOME/gopath/bin/ginkgo -r --randomizeAllSpecs --randomizeSuites --race --trace

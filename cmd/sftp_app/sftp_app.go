@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/defgenx/funicular/internal/utils"
 	"github.com/defgenx/funicular/pkg/clients"
+	"github.com/defgenx/funicular/internal/utils"
 
 	"fmt"
 	"github.com/pkg/sftp"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const ENV_DIR = ".env"
+const ENV_DIR = "../../.env"
 const STREAM = "intra-new-outbound-vgm"
 const OUTBOUND_VGM_DIR = "./outbound/vgm/"
 

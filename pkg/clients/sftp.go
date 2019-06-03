@@ -2,6 +2,7 @@ package clients
 
 import (
 	"fmt"
+	"github.com/defgenx/funicular/internal/utils"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"log"
@@ -20,44 +21,6 @@ type SFTPManager struct {
 	Conns     []*SFTPWrapper
 	log       *log.Logger
 	sshConfig *ssh.ClientConfig
-}
-
-// SFTP connection (with clients)
-type SFTPWrapper struct {
-	sync.Mutex
-	connection *ssh.Client
-	Client     *sftp.Client
-	shutdown   chan bool
-	closed     bool
-	reconnects uint64
-}
-
-// SFTP Wrapper Construct
-func NewSFTPWrapper(sshClient *ssh.Client, sftpClient *sftp.Client) *SFTPWrapper {
-	return &SFTPWrapper{
-		connection: sshClient,
-		Client:     sftpClient,
-		shutdown:   make(chan bool, 0),
-		closed:     false,
-		reconnects: 0,
-	}
-}
-
-// SFTP Wrapper Close connection => chan notify ssh connection to close
-func (s *SFTPWrapper) Close() error {
-	s.Lock()
-	defer s.Unlock()
-	if s.closed == true {
-		return fmt.Errorf("Connection was already closed")
-	}
-	var err = s.Client.Close()
-	if err != nil {
-		log.Fatalf("unable to close ftp connection: %v", err)
-	} else {
-		s.shutdown <- true
-		s.closed = true
-	}
-	return s.Client.Wait()
 }
 
 // SFTP Manager Construct
@@ -126,4 +89,44 @@ func (sm *SFTPManager) reconnect(c *SFTPWrapper) {
 		// New connections set, rerun async reconnect
 		sm.reconnect(c)
 	}
+}
+
+//------------------------------------------------------------------------------
+
+// SFTP connection (with clients)
+type SFTPWrapper struct {
+	sync.Mutex
+	connection *ssh.Client
+	Client     *sftp.Client
+	shutdown   chan bool
+	closed     bool
+	reconnects uint64
+}
+
+// SFTP Wrapper Construct
+func NewSFTPWrapper(sshClient *ssh.Client, sftpClient *sftp.Client) *SFTPWrapper {
+	return &SFTPWrapper{
+		connection: sshClient,
+		Client:     sftpClient,
+		shutdown:   make(chan bool, 0),
+		closed:     false,
+		reconnects: 0,
+	}
+}
+
+// SFTP Wrapper Close connection => chan notify ssh connection to close
+func (s *SFTPWrapper) Close() error {
+	s.Lock()
+	defer s.Unlock()
+	if s.closed == true {
+		return utils.ErrorPrint("Connection was already closed")
+	}
+	var err = s.Client.Close()
+	if err != nil {
+		return utils.ErrorPrintf("unable to close ftp connection: %v", err)
+	} else {
+		s.shutdown <- true
+		s.closed = true
+	}
+	return s.Client.Wait()
 }
