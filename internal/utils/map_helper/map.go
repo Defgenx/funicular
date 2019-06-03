@@ -2,7 +2,7 @@ package map_helper
 
 import "reflect"
 
-func Copy(originalMap map[Type]Type1) map[string]interface{} {
+func Copy(originalMap map[string]interface{}) map[string]interface{} {
 	var newMap = make(map[string]interface{})
 	for k,v := range originalMap {
 		newMap[k] = v

@@ -1,9 +1,9 @@
 package main
 
 import (
+	"github.com/defgenx/funicular/pkg/clients"
+
 	"fmt"
-	funiRedis "funicular/pkg/clients/redis"
-	funiSftp "funicular/pkg/clients/sftp"
 	"github.com/joho/godotenv"
 	"github.com/pkg/sftp"
 	"io/ioutil"
@@ -30,7 +30,7 @@ func main() {
 		if portInt, err := strconv.Atoi(os.Getenv("INTRA_PORT")); err == nil {
 			port = uint32(portInt)
 		}
-		sftpManager := funiSftp.NewSFTPManager(
+		sftpManager := clients.NewSFTPManager(
 			os.Getenv("INTRA_HOST"),
 			port,
 			os.Getenv("INTRA_USER"),
@@ -43,7 +43,7 @@ func main() {
 		defer func() {
 			err := sftpConn.Close()
 			if err != nil {
-				log.Fatalf("failed to close SFTP client: %v", err)
+				log.Fatalf("Failed to close SFTP client: %v", err)
 			}
 		}()
 
@@ -60,9 +60,10 @@ func main() {
 					if !stringInSlice(file.Name(), tmpReadFiles) {
 						fHandler, err := sftpConn.Client.Open(OUTBOUND_VGM_DIR + file.Name())
 						if err != nil {
-							log.Fatalf("Cannot read file %s #%v", file.Name(), err)
+							log.Printf("Cannot read file %s #%v", file.Name(), err)
+						} else {
+							fileChan <- map[string]interface{}{"fileInfo": file, "fileHandler": fHandler}
 						}
-						fileChan <- map[string]interface{}{"fileInfo": file, "fileHandler": fHandler}
 					}
 				}
 				tmpReadFiles = dir
@@ -73,8 +74,8 @@ func main() {
 
 	redisPort, _ := strconv.Atoi(os.Getenv("REDIS_PORT"))
 	redisDb, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
-	redisCli := funiRedis.NewWrapper(
-		funiRedis.Config{
+	redisCli := clients.NewRedisWrapper(
+		clients.RedisConfig{
 			Host: os.Getenv("REDIS_HOST"),
 			Port: uint16(redisPort),
 			DB:   uint8(redisDb),
@@ -84,23 +85,24 @@ func main() {
 	defer func() {
 		err := redisCli.Client.Close()
 		if err != nil {
-			log.Fatalf("failed to close redis client: %v", err)
+			log.Fatalf("Failed to close redis client: %v", err)
 		}
 	}()
 
 	for {
 		select {
 		case fileMap := <-fileChan:
-			fmt.Printf("Got message: %v\n", fileMap["fileInfo"].(os.FileInfo).Name())
+			fmt.Printf("Got file message chan: %v\n", fileMap["fileInfo"].(os.FileInfo).Name())
 
 			fByteData, err := ioutil.ReadAll(fileMap["fileHandler"].(*sftp.File))
 			if err != nil {
-				log.Fatalf("Cannot read file data %s #%v", fileMap["fileInfo"].(os.FileInfo).Name(), err)
-			}
-			msgData := map[string]interface{}{"filename": fileMap["fileInfo"].(os.FileInfo).Name(), "fileData": fByteData}
-			_, err = redisCli.SendStreamMessage(msgData)
-			if err != nil {
-				log.Fatalf("Cannot send message %v", err)
+				log.Printf("Cannot read file data %s #%v", fileMap["fileInfo"].(os.FileInfo).Name(), err)
+			} else {
+				msgData := map[string]interface{}{"filename": fileMap["fileInfo"].(os.FileInfo).Name(), "fileData": fByteData}
+				_, err = redisCli.SendMessage(msgData)
+				if err != nil {
+					log.Printf("Cannot send message: %v", err)
+				}
 			}
 		}
 	}

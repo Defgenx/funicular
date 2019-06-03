@@ -1,8 +1,8 @@
 package main
 
 import (
-	funiAWS "funicular/pkg/clients/aws"
-	funiRedis "funicular/pkg/clients/redis"
+	"github.com/defgenx/funicular/pkg/clients"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-redis/redis"
 	"github.com/joho/godotenv"
@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const ENV_DIR = ".env"
@@ -28,8 +29,8 @@ func main() {
 	go func() {
 		redisPort, _ := strconv.Atoi(os.Getenv("REDIS_PORT"))
 		redisDb, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
-		redisCli := funiRedis.NewWrapper(
-			funiRedis.Config{
+		redisCli := clients.NewRedisWrapper(
+			clients.RedisConfig{
 				Host: os.Getenv("REDIS_HOST"),
 				Port: uint16(redisPort),
 				DB:   uint8(redisDb),
@@ -39,7 +40,7 @@ func main() {
 		defer func() {
 			err := redisCli.Client.Close()
 			if err != nil {
-				log.Fatalf("failed to close redis client: %v", err)
+				log.Fatalf("Failed to close redis client: %v", err)
 			}
 		}()
 
@@ -47,28 +48,34 @@ func main() {
 			for {
 				select {
 				case filename := <-s3Chan:
-					_, err := redisCli.DeleteMessages(filename)
+					_, err := redisCli.DeleteMessage(filename)
 					if err != nil {
-						log.Fatalf("failed to delete stream message: %v", err)
+						log.Fatalf("Failed to delete stream message: %v", err)
 					}
 					log.Printf("File message stream deleted for ID: %s", filename)
 				}
 			}
 		}()
-
+		lastId := "$"
 		for {
-			vals, err := redisCli.ReadRangeMessage("-", "+")
+			vals, err := redisCli.ReadMessage(lastId, 5, 3000 * time.Millisecond)
 			if err != nil {
-				log.Fatalf("failed to read redis stream: %v", err)
-			}
-			for _, msg := range vals {
-				log.Printf("Got message with file: %s",	msg.Values["filename"].(string))
-				fileChan <- msg
+				log.Printf("Redis read error: %v", err)
+			} else {
+				NbStream := len(vals)
+				NbMsgLastStreamEntry := len(vals[NbStream - 1].Messages)
+				lastId = vals[NbStream - 1].Messages[NbMsgLastStreamEntry - 1].ID
+				for _, msgs := range vals {
+					for _, msg := range msgs.Messages {
+						log.Printf("Got message with file: %s", msg.Values["filename"].(string))
+						fileChan <- msg
+					}
+				}
 			}
 		}
 	}()
 
-	awsManager := funiAWS.NewAWSManager(uint8(3))
+	awsManager := clients.NewAWSManager(uint8(3))
 	s3Bucket := awsManager.S3Manager.AddS3BucketManager(BUCKET_NAME)
 
 	for {
@@ -80,10 +87,11 @@ func main() {
 				strings.NewReader(fileData.Values["fileData"].(string)),
 				)
 			if err != nil {
-				log.Fatalf("failed to upload file, %v", err)
+				log.Printf("Failed to upload file, %v", err)
+			} else {
+				log.Printf("File uploaded to, %s\n", aws.StringValue(&result.Location))
+				s3Chan <- fileData.ID
 			}
-			log.Printf("file uploaded to, %s\n", aws.StringValue(&result.Location))
-			s3Chan <- fileData.ID
 		}
 	}
 }
