@@ -2,16 +2,17 @@ package clients_test
 
 import (
 	"github.com/defgenx/funicular/internal/utils"
+	"github.com/go-redis/redis"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"os"
 	"strconv"
+	"time"
 
 	. "github.com/defgenx/funicular/pkg/clients"
 )
 
 var _ = Describe("Redis", func() {
-
 	// Declaring var for tests
 	port, _ := strconv.Atoi(os.Getenv("REDIS_PORT"))
 	db, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
@@ -20,7 +21,7 @@ var _ = Describe("Redis", func() {
 		Port: uint16(port),
 		DB:   uint8(db),
 	}
-	//var wrapper = NewRedisWrapper(config, "test-channel")
+	var wrapper, nilErr = NewRedisWrapper(config, "test-channel")
 
 	Describe("Using Manager", func() {
 		var manualManager = &RedisManager{
@@ -38,7 +39,7 @@ var _ = Describe("Redis", func() {
 				Expect(manager).To(Equal(manualManager))
 			})
 
-			It("should contains zero clients", func() {
+			It("should contain zero clients", func() {
 				Expect(len(manager.Clients)).To(BeZero())
 			})
 		})
@@ -58,7 +59,7 @@ var _ = Describe("Redis", func() {
 				Expect(manager.Clients[category][0]).To(Equal(client))
 			})
 
-			It("should close all clients", func() {
+			It("should not close clients", func() {
 				var err error
 				stdout := utils.CaptureStdout(func() { err = manager.Close() })
 				Expect(err).ToNot(HaveOccurred())
@@ -86,6 +87,42 @@ var _ = Describe("Redis", func() {
 				stdout := utils.CaptureStdout(func() { err = manager.Close() })
 				Expect(err).ToNot(HaveOccurred())
 				Expect(stdout).ToNot(ContainSubstring("Manager have no clients to close..."))
+			})
+		})
+	})
+
+
+	Describe("Using Wrapper", func() {
+		Context("From constructor function", func() {
+			It("should create a valid instance", func() {
+				Expect(nilErr).ToNot(HaveOccurred())
+				Expect(wrapper.Client).To(BeAssignableToTypeOf(&redis.Client{}))
+				Expect(wrapper.GetChannel()).To(Equal("test-channel"))
+			})
+
+			It("should fail with empty string for channel", func() {
+				_, filledErr := NewRedisWrapper(config, "")
+				Expect(filledErr).To(
+					SatisfyAll(
+						HaveOccurred(),
+						MatchError("channel must be filled"),
+					),
+				)
+			})
+		})
+
+		Context("When Redis stream channel is empty", func() {
+			It("should fail to read", func() {
+				_, readErr := wrapper.ReadMessage("$", 1, 100 * time.Millisecond)
+				Expect(readErr).To(
+					SatisfyAll(
+						HaveOccurred(),
+						MatchError("redis: nil"),
+					),
+				)
+
+				_, readErr = wrapper.ReadRangeMessage("-", "+")
+				Expect(readErr).ToNot(HaveOccurred())
 			})
 		})
 	})

@@ -1,15 +1,18 @@
 package utils
 
 import (
+	"fmt"
 	"github.com/joho/godotenv"
 	"log"
+	"os"
 )
 
-func LoadEnvFile(envDir string, runningEnv string) {
-	allowedRunningEnv := []string{"development", "testing"}
+func LoadEnvFile(envFile string, runningEnv string) {
+	allowedRunningEnv := []string{"development"}
 	exists, _ := InArray(runningEnv, allowedRunningEnv)
 	if exists {
-		err := godotenv.Load(envDir)
+		path, _ := os.Getwd()
+		err := godotenv.Load(fmt.Sprintf("%s/%s", path, envFile))
 		if err != nil {
 			log.Fatal("Error loading environment file")
 		}

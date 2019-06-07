@@ -71,7 +71,7 @@ func main() {
 
 	redisPort, _ := strconv.Atoi(os.Getenv("REDIS_PORT"))
 	redisDb, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
-	redisCli := clients.NewRedisWrapper(
+	redisCli, _ := clients.NewRedisWrapper(
 		clients.RedisConfig{
 			Host: os.Getenv("REDIS_HOST"),
 			Port: uint16(redisPort),

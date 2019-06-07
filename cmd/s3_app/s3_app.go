@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/defgenx/funicular/pkg/clients"
 	"github.com/defgenx/funicular/internal/utils"
+	"github.com/defgenx/funicular/pkg/clients"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-redis/redis"
@@ -20,13 +20,12 @@ const STORE_PATH = "/outbound/test/"
 
 func main() {
 	utils.LoadEnvFile(ENV_DIR, os.Getenv("ENV"))
-
 	fileChan := make(chan redis.XMessage)
 	s3Chan := make(chan string)
 	go func() {
 		redisPort, _ := strconv.Atoi(os.Getenv("REDIS_PORT"))
 		redisDb, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
-		redisCli := clients.NewRedisWrapper(
+		redisCli, wrapperErr := clients.NewRedisWrapper(
 			clients.RedisConfig{
 				Host: os.Getenv("REDIS_HOST"),
 				Port: uint16(redisPort),
@@ -34,6 +33,10 @@ func main() {
 			},
 			STREAM,
 		)
+		if wrapperErr != nil {
+			log.Fatalf("Redis read error: %v", wrapperErr)
+		}
+
 		defer func() {
 			err := redisCli.Client.Close()
 			if err != nil {
