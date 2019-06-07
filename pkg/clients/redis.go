@@ -41,7 +41,7 @@ func (rw *RedisManager) AddClient(config RedisConfig, category string, channel s
 	if channel == "" {
 		channel = category
 	}
-	client := NewRedisWrapper(config, channel)
+	client, _ := NewRedisWrapper(config, channel)
 	rw.add(client, category)
 	return client, nil
 }
@@ -83,13 +83,17 @@ type RedisWrapper struct {
 	channel string
 }
 
-func NewRedisWrapper(config RedisConfig, channel string) *RedisWrapper {
+func NewRedisWrapper(config RedisConfig, channel string) (*RedisWrapper, error) {
+	if channel == "" {
+		return nil, utils.ErrorPrint("channel must be filled")
+	}
 	client := redis.NewClient(config.ToOption())
 	return &RedisWrapper{
 		Client: client,
 		config: &config,
 		channel: channel,
-	}
+	},
+	nil
 }
 
 func (w *RedisWrapper) SendMessage(data map[string]interface{}) (string, error) {
@@ -101,10 +105,10 @@ func (w *RedisWrapper) SendMessage(data map[string]interface{}) (string, error) 
 	return result.Result()
 }
 
-func (w *RedisWrapper) ReadMessage(last_id string, count int64, block time.Duration) ([]redis.XStream, error) {
+func (w *RedisWrapper) ReadMessage(lastId string, count int64, block time.Duration) ([]redis.XStream, error) {
 	var channels = make([]string, 0)
 	channels = append(channels, w.channel)
-	channels = append(channels, last_id)
+	channels = append(channels, lastId)
 	xReadArgs := &redis.XReadArgs{
 		Streams: channels,
 		Count: count,
