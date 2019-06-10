@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/defgenx/funicular/pkg/clients"
 	"github.com/defgenx/funicular/internal/utils"
+	"github.com/defgenx/funicular/pkg/clients"
 
 	"fmt"
 	"github.com/pkg/sftp"
@@ -96,7 +96,7 @@ func main() {
 				log.Printf("Cannot read file data %s #%v", fileMap["fileInfo"].(os.FileInfo).Name(), err)
 			} else {
 				msgData := map[string]interface{}{"filename": fileMap["fileInfo"].(os.FileInfo).Name(), "fileData": fByteData}
-				_, err = redisCli.SendMessage(msgData)
+				_, err = redisCli.AddMessage(msgData)
 				if err != nil {
 					log.Printf("Cannot send message: %v", err)
 				}

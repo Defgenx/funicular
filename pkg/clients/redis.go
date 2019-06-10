@@ -12,13 +12,13 @@ import (
 type RedisConfig struct {
 	Host string
 	Port uint16
-	DB uint8
+	DB   uint8
 }
 
 func (rc *RedisConfig) ToOption() *redis.Options {
 	return &redis.Options{
 		Addr: net.JoinHostPort(rc.Host, strconv.Itoa(int(rc.Port))),
-		DB: int(rc.DB),
+		DB:   int(rc.DB),
 	}
 }
 
@@ -89,14 +89,14 @@ func NewRedisWrapper(config RedisConfig, channel string) (*RedisWrapper, error) 
 	}
 	client := redis.NewClient(config.ToOption())
 	return &RedisWrapper{
-		Client: client,
-		config: &config,
+		Client:  client,
+		config:  &config,
 		channel: channel,
 	},
-	nil
+		nil
 }
 
-func (w *RedisWrapper) SendMessage(data map[string]interface{}) (string, error) {
+func (w *RedisWrapper) AddMessage(data map[string]interface{}) (string, error) {
 	xAddArgs := &redis.XAddArgs{
 		Stream: w.channel,
 		Values: data,
@@ -111,8 +111,8 @@ func (w *RedisWrapper) ReadMessage(lastId string, count int64, block time.Durati
 	channels = append(channels, lastId)
 	xReadArgs := &redis.XReadArgs{
 		Streams: channels,
-		Count: count,
-		Block: block,
+		Count:   count,
+		Block:   block,
 	}
 	result := w.Client.XRead(xReadArgs)
 	return result.Result()
@@ -133,7 +133,7 @@ func (w *RedisWrapper) DeleteMessage(ids ...string) (int64, error) {
 }
 
 func (w *RedisWrapper) CreateGroup(group string, start string) (string, error) {
-	result := w.Client.XGroupCreate(w.channel, group, start)
+	result := w.Client.XGroupCreateMkStream(w.channel, group, start)
 	return result.Result()
 }
 

@@ -19,22 +19,22 @@ type AWSManager struct {
 }
 
 func NewAWSManager(maxRetries uint8) *AWSManager {
-	config := &aws.Config {
+	config := &aws.Config{
 		MaxRetries: aws.Int(int(maxRetries)),
 	}
 	return &AWSManager{
-		config: config,
+		config:    config,
 		S3Manager: NewS3Manager(config),
-		log: log.New(os.Stdout, "AWSManager", log.Ldate|log.Ltime|log.Lshortfile),
+		log:       log.New(os.Stdout, "AWSManager", log.Ldate|log.Ltime|log.Lshortfile),
 	}
 }
 
 //------------------------------------------------------------------------------
 
 type S3Manager struct {
-	session    *session.Session
-	Client     *s3.S3
-	S3Conns     []*S3Wrapper
+	session *session.Session
+	Client  *s3.S3
+	S3Conns []*S3Wrapper
 }
 
 func NewS3Manager(config *aws.Config) *S3Manager {
@@ -42,7 +42,7 @@ func NewS3Manager(config *aws.Config) *S3Manager {
 	s3Client := s3.New(sess)
 	return &S3Manager{
 		session: sess,
-		Client: s3Client,
+		Client:  s3Client,
 		S3Conns: make([]*S3Wrapper, 0),
 	}
 }
@@ -67,7 +67,7 @@ func NewS3Wrapper(bucketName string, s3Session *session.Session) *S3Wrapper {
 	downloader := s3manager.NewDownloader(s3Session)
 	return &S3Wrapper{
 		bucketName: bucketName,
-		Uploader: uploader,
+		Uploader:   uploader,
 		Downloader: downloader,
 	}
 }

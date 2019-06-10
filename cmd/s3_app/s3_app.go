@@ -58,13 +58,13 @@ func main() {
 		}()
 		lastId := "$"
 		for {
-			vals, err := redisCli.ReadMessage(lastId, 5, 3000 * time.Millisecond)
+			vals, err := redisCli.ReadMessage(lastId, 5, 3000*time.Millisecond)
 			if err != nil {
 				log.Printf("Redis read error: %v", err)
 			} else {
 				NbStream := len(vals)
-				NbMsgLastStreamEntry := len(vals[NbStream - 1].Messages)
-				lastId = vals[NbStream - 1].Messages[NbMsgLastStreamEntry - 1].ID
+				NbMsgLastStreamEntry := len(vals[NbStream-1].Messages)
+				lastId = vals[NbStream-1].Messages[NbMsgLastStreamEntry-1].ID
 				for _, msgs := range vals {
 					for _, msg := range msgs.Messages {
 						log.Printf("Got message with file: %s", msg.Values["filename"].(string))
@@ -85,7 +85,7 @@ func main() {
 				STORE_PATH,
 				fileData.Values["filename"].(string),
 				strings.NewReader(fileData.Values["fileData"].(string)),
-				)
+			)
 			if err != nil {
 				log.Printf("Failed to upload file, %v", err)
 			} else {

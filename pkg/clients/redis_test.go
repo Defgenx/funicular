@@ -2,14 +2,14 @@ package clients_test
 
 import (
 	"github.com/defgenx/funicular/internal/utils"
+	. "github.com/defgenx/funicular/pkg/clients"
+
 	"github.com/go-redis/redis"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"os"
 	"strconv"
 	"time"
-
-	. "github.com/defgenx/funicular/pkg/clients"
 )
 
 var _ = Describe("Redis", func() {
@@ -24,10 +24,11 @@ var _ = Describe("Redis", func() {
 	var wrapper, nilErr = NewRedisWrapper(config, "test-channel")
 
 	Describe("Using Manager", func() {
+
 		var manualManager = &RedisManager{
 			Clients: make(map[string][]*RedisWrapper),
 		}
-		var category= "test"
+		var category = "test"
 		var manager *RedisManager
 
 		BeforeEach(func() {
@@ -35,6 +36,7 @@ var _ = Describe("Redis", func() {
 		})
 
 		Context("From constructor function", func() {
+
 			It("should create a valid instance", func() {
 				Expect(manager).To(Equal(manualManager))
 			})
@@ -51,6 +53,7 @@ var _ = Describe("Redis", func() {
 		})
 
 		Context("Without Redis client in the stack", func() {
+
 			It("should use category as channel if channel is empty and add client to manager", func() {
 				client, err := manager.AddClient(config, category, "")
 				Expect(err).ToNot(HaveOccurred())
@@ -68,6 +71,7 @@ var _ = Describe("Redis", func() {
 		})
 
 		Context("With Redis clients in the stack", func() {
+
 			It("should use category as channel if channel is empty and add client to manager", func() {
 				client, err := manager.AddClient(config, category, "")
 				client2, err2 := manager.AddClient(config, category, "")
@@ -91,9 +95,14 @@ var _ = Describe("Redis", func() {
 		})
 	})
 
-
 	Describe("Using Wrapper", func() {
+
+		var group = "foo-group"
+		var validDefaultMsgId = "1538561700640-0"
+		var malformedMsgId = "foo:bar"
+
 		Context("From constructor function", func() {
+
 			It("should create a valid instance", func() {
 				Expect(nilErr).ToNot(HaveOccurred())
 				Expect(wrapper.Client).To(BeAssignableToTypeOf(&redis.Client{}))
@@ -112,8 +121,9 @@ var _ = Describe("Redis", func() {
 		})
 
 		Context("When Redis stream channel is empty", func() {
-			It("should fail to read", func() {
-				_, readErr := wrapper.ReadMessage("$", 1, 100 * time.Millisecond)
+
+			It("should fail to read message", func() {
+				_, readErr := wrapper.ReadMessage("$", 1, 100*time.Millisecond)
 				Expect(readErr).To(
 					SatisfyAll(
 						HaveOccurred(),
@@ -122,6 +132,117 @@ var _ = Describe("Redis", func() {
 				)
 
 				_, readErr = wrapper.ReadRangeMessage("-", "+")
+				Expect(readErr).ToNot(HaveOccurred())
+			})
+
+			It("should not have messages to delete", func() {
+				id, readErr := wrapper.DeleteMessage(validDefaultMsgId)
+				Expect(id).To(BeZero())
+				Expect(readErr).ToNot(HaveOccurred())
+			})
+
+			It("should fail to delete malformed message ID", func() {
+				id, readErr := wrapper.DeleteMessage(malformedMsgId)
+				Expect(id).To(BeZero())
+				Expect(readErr).To(
+					SatisfyAll(
+						HaveOccurred(),
+						MatchError("ERR Invalid stream ID specified as stream command argument"),
+					),
+				)
+			})
+
+			Context("When no group exists", func() {
+
+				It("should not have messages to acknowledge", func() {
+					id, readErr := wrapper.AckMessage(group, malformedMsgId)
+					Expect(id).To(BeZero())
+					Expect(readErr).ToNot(HaveOccurred())
+				})
+
+				It("should not have pending messages", func() {
+					_, readErr := wrapper.PendingMessage(group)
+					Expect(readErr).To(HaveOccurred())
+				})
+			})
+
+			Context("When a group exists", func() {
+
+				var cliAddGrpResponse string
+				var errAddGrp error
+
+				BeforeEach(func() {
+					cliAddGrpResponse, errAddGrp = wrapper.CreateGroup(group, "$")
+				})
+
+				AfterEach(func() {
+					_, _ = wrapper.DeleteGroup(group)
+				})
+
+				It("should have created a new group", func() {
+					Expect(cliAddGrpResponse).To(Equal("OK"))
+					Expect(errAddGrp).ToNot(HaveOccurred())
+				})
+
+				It("should fail to create same group", func() {
+					failResp, errSameAddGrp := wrapper.CreateGroup(group, "$")
+					Expect(failResp).To(BeEmpty())
+					Expect(errSameAddGrp).To(
+						SatisfyAll(
+							HaveOccurred(),
+							MatchError("BUSYGROUP Consumer Group name already exists"),
+						),
+					)
+				})
+
+				It("should delete the group", func() {
+					delGrp, errDelGrp := wrapper.DeleteGroup(group)
+					Expect(delGrp).To(Equal(int64(1)))
+					Expect(errDelGrp).ToNot(HaveOccurred())
+				})
+
+				It("should fail to acknowledge malformed message ID", func() {
+					ackMsgGrp, errAckMgsGrp := wrapper.AckMessage(group, malformedMsgId)
+					Expect(ackMsgGrp).To(BeZero())
+					Expect(errAckMgsGrp).To(
+						SatisfyAll(
+							HaveOccurred(),
+							MatchError("ERR Invalid stream ID specified as stream command argument"),
+						),
+					)
+				})
+
+				It("should not have message to acknowledge", func() {
+					ackMsgGrp, errAckMgsGrp := wrapper.AckMessage(group, validDefaultMsgId)
+					Expect(ackMsgGrp).To(BeZero())
+					Expect(errAckMgsGrp).ToNot(HaveOccurred())
+				})
+			})
+		})
+
+		Context("When Redis stream channel is filled", func() {
+
+			message := map[string]interface{}{"foo": "bar"}
+			var msgId string
+
+			BeforeEach(func() {
+				msgId, _ = wrapper.AddMessage(message)
+			})
+
+			It("should read message", func() {
+				msg, readErr := wrapper.ReadMessage("$", 1, 100*time.Millisecond)
+				Expect(readErr).ToNot(HaveOccurred())
+				Expect(msg).To(
+					SatisfyAll(
+						HaveLen(1),
+						ContainElement(message),
+					),
+				)
+			})
+
+			It("should delete message", func() {
+				nbMsg, readErr := wrapper.DeleteMessage(msgId)
+				Expect(nbMsg).To(Equal(int64(1)))
 				Expect(readErr).ToNot(HaveOccurred())
 			})
 		})
