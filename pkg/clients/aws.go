@@ -18,13 +18,11 @@ type AWSManager struct {
 	log          *log.Logger
 }
 
-func NewAWSManager(maxRetries uint8) *AWSManager {
-	config := &aws.Config{
-		MaxRetries: aws.Int(int(maxRetries)),
-	}
+func NewAWSManager(config *aws.Config) *AWSManager {
+	sess := session.Must(session.NewSession(config))
 	return &AWSManager{
 		config:    config,
-		S3Manager: NewS3Manager(config),
+		S3Manager: NewS3Manager(sess),
 		log:       log.New(os.Stdout, "AWSManager", log.Ldate|log.Ltime|log.Lshortfile),
 	}
 }
@@ -34,22 +32,21 @@ func NewAWSManager(maxRetries uint8) *AWSManager {
 type S3Manager struct {
 	session *session.Session
 	Client  *s3.S3
-	S3Conns []*S3Wrapper
+	S3      []*S3Wrapper
 }
 
-func NewS3Manager(config *aws.Config) *S3Manager {
-	sess := session.Must(session.NewSession(config))
-	s3Client := s3.New(sess)
+func NewS3Manager(session *session.Session) *S3Manager {
+	s3Client := s3.New(session)
 	return &S3Manager{
-		session: sess,
+		session: session,
 		Client:  s3Client,
-		S3Conns: make([]*S3Wrapper, 0),
+		S3:      make([]*S3Wrapper, 0),
 	}
 }
 
 func (s3m *S3Manager) AddS3BucketManager(bucketName string) *S3Wrapper {
 	s3Wrapper := NewS3Wrapper(bucketName, s3m.session)
-	s3m.S3Conns = append(s3m.S3Conns, s3Wrapper)
+	s3m.S3 = append(s3m.S3, s3Wrapper)
 	return s3Wrapper
 }
 

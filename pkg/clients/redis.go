@@ -1,9 +1,12 @@
 package clients
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"github.com/defgenx/funicular/internal/utils"
 	"github.com/go-redis/redis"
 	"log"
+	"math/rand"
 	"net"
 	"strconv"
 	"time"
@@ -34,16 +37,23 @@ func NewRedisManager() *RedisManager {
 	}
 }
 
-func (rw *RedisManager) AddClient(config RedisConfig, category string, channel string) (*RedisWrapper, error) {
+func (rw *RedisManager) AddClient(config RedisConfig, category string, channel string, consumerName string) (*RedisWrapper, error) {
 	if category == "" {
 		return nil, utils.ErrorPrint("category must be filled")
 	}
 	if channel == "" {
 		channel = category
 	}
-	client, _ := NewRedisWrapper(config, channel)
+	client, _ := NewRedisWrapper(config, channel, consumerName)
 	rw.add(client, category)
 	return client, nil
+}
+
+func (rw *RedisManager) GetCategories() (clientsCat []string) {
+	for key := range rw.Clients {
+		clientsCat = append(clientsCat, key)
+	}
+	return
 }
 
 func (rw *RedisManager) Close() error {
@@ -78,20 +88,27 @@ func (rw *RedisManager) add(redisWrapper *RedisWrapper, category string) {
 //------------------------------------------------------------------------------
 
 type RedisWrapper struct {
-	Client  *redis.Client
-	config  *RedisConfig
-	channel string
+	Client       *redis.Client
+	config       *RedisConfig
+	channel      string
+	consumerName string
 }
 
-func NewRedisWrapper(config RedisConfig, channel string) (*RedisWrapper, error) {
+func NewRedisWrapper(config RedisConfig, channel string, consumerName string) (*RedisWrapper, error) {
 	if channel == "" {
 		return nil, utils.ErrorPrint("channel must be filled")
 	}
+	if consumerName == "" {
+		h := sha256.New()
+		h.Write([]byte(fmt.Sprintf("%f", rand.Float64())))
+		consumerName = fmt.Sprintf("%x", h.Sum(nil))
+	}
 	client := redis.NewClient(config.ToOption())
 	return &RedisWrapper{
-		Client:  client,
-		config:  &config,
-		channel: channel,
+		Client:       client,
+		config:       &config,
+		channel:      channel,
+		consumerName: consumerName,
 	},
 		nil
 }
@@ -108,6 +125,7 @@ func (w *RedisWrapper) AddMessage(data map[string]interface{}) (string, error) {
 func (w *RedisWrapper) ReadMessage(lastId string, count int64, block time.Duration) ([]redis.XStream, error) {
 	var channels = make([]string, 0)
 	channels = append(channels, w.channel)
+	// Not implemented explicitly in the lib but works the way the code is written
 	channels = append(channels, lastId)
 	xReadArgs := &redis.XReadArgs{
 		Streams: channels,
@@ -115,6 +133,29 @@ func (w *RedisWrapper) ReadMessage(lastId string, count int64, block time.Durati
 		Block:   block,
 	}
 	result := w.Client.XRead(xReadArgs)
+	return result.Result()
+}
+
+func (w *RedisWrapper) ReadGroupMessage(group string, count int64, block time.Duration, extraIds ...string) ([]redis.XStream, error) {
+	var channels = make([]string, 0)
+	channels = append(channels, w.channel)
+	// The special > ID, which means that the consumer want to receive only messages that were never delivered to any other consumer
+	channels = append(channels, ">")
+	// Any other ids if given
+	if len(extraIds) > 0 {
+		for _, id := range extraIds {
+			channels = append(channels, id)
+		}
+	}
+	xReadGroupArgs := &redis.XReadGroupArgs{
+		Group:    group,
+		Streams:  channels,
+		Consumer: w.consumerName,
+		Count:    count,
+		Block:    block,
+		NoAck:    false,
+	}
+	result := w.Client.XReadGroup(xReadGroupArgs)
 	return result.Result()
 }
 
@@ -133,6 +174,7 @@ func (w *RedisWrapper) DeleteMessage(ids ...string) (int64, error) {
 }
 
 func (w *RedisWrapper) CreateGroup(group string, start string) (string, error) {
+	// MKSTREAM is not documented in Redis and allow to create stream if it is not created beforehand
 	result := w.Client.XGroupCreateMkStream(w.channel, group, start)
 	return result.Result()
 }
@@ -149,6 +191,11 @@ func (w *RedisWrapper) PendingMessage(group string) (*redis.XPending, error) {
 
 func (w *RedisWrapper) AckMessage(group string, ids ...string) (int64, error) {
 	result := w.Client.XAck(w.channel, group, ids...)
+	return result.Result()
+}
+
+func (w *RedisWrapper) DeleteGroupConsumer(group string) (int64, error) {
+	result := w.Client.XGroupDelConsumer(w.channel, group, w.consumerName)
 	return result.Result()
 }
 

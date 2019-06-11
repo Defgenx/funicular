@@ -21,7 +21,7 @@ var _ = Describe("Redis", func() {
 		Port: uint16(port),
 		DB:   uint8(db),
 	}
-	var wrapper, nilErr = NewRedisWrapper(config, "test-channel")
+	var wrapper, nilErr = NewRedisWrapper(config, "test-channel", "")
 
 	Describe("Using Manager", func() {
 
@@ -47,7 +47,7 @@ var _ = Describe("Redis", func() {
 		})
 
 		It("should fail to add client with empty category", func() {
-			client, err := manager.AddClient(config, "", "test")
+			client, err := manager.AddClient(config, "", "test", "")
 			Expect(err).To(HaveOccurred())
 			Expect(client).To(BeNil())
 		})
@@ -55,7 +55,7 @@ var _ = Describe("Redis", func() {
 		Context("Without Redis client in the stack", func() {
 
 			It("should use category as channel if channel is empty and add client to manager", func() {
-				client, err := manager.AddClient(config, category, "")
+				client, err := manager.AddClient(config, category, "", "")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(client.GetChannel()).To(Equal(category))
 				Expect(manager.Clients[category]).To(HaveLen(1))
@@ -73,8 +73,8 @@ var _ = Describe("Redis", func() {
 		Context("With Redis clients in the stack", func() {
 
 			It("should use category as channel if channel is empty and add client to manager", func() {
-				client, err := manager.AddClient(config, category, "")
-				client2, err2 := manager.AddClient(config, category, "")
+				client, err := manager.AddClient(config, category, "", "")
+				client2, err2 := manager.AddClient(config, category, "", "")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(client.GetChannel()).To(Equal(category))
 				Expect(err2).ToNot(HaveOccurred())
@@ -85,8 +85,8 @@ var _ = Describe("Redis", func() {
 			})
 
 			It("should close all clients", func() {
-				_, _ = manager.AddClient(config, category, "")
-				_, _ = manager.AddClient(config, category, "")
+				_, _ = manager.AddClient(config, category, "", "")
+				_, _ = manager.AddClient(config, category, "", "")
 				var err error
 				stdout := utils.CaptureStdout(func() { err = manager.Close() })
 				Expect(err).ToNot(HaveOccurred())
@@ -110,7 +110,7 @@ var _ = Describe("Redis", func() {
 			})
 
 			It("should fail with empty string for channel", func() {
-				_, filledErr := NewRedisWrapper(config, "")
+				_, filledErr := NewRedisWrapper(config, "", "")
 				Expect(filledErr).To(
 					SatisfyAll(
 						HaveOccurred(),
@@ -141,47 +141,32 @@ var _ = Describe("Redis", func() {
 				Expect(readErr).ToNot(HaveOccurred())
 			})
 
-			It("should fail to delete malformed message ID", func() {
-				id, readErr := wrapper.DeleteMessage(malformedMsgId)
-				Expect(id).To(BeZero())
-				Expect(readErr).To(
-					SatisfyAll(
-						HaveOccurred(),
-						MatchError("ERR Invalid stream ID specified as stream command argument"),
-					),
-				)
-			})
-
 			Context("When no group exists", func() {
 
 				It("should not have messages to acknowledge", func() {
-					id, readErr := wrapper.AckMessage(group, malformedMsgId)
+					id, readErr := wrapper.AckMessage(group, validDefaultMsgId)
 					Expect(id).To(BeZero())
 					Expect(readErr).ToNot(HaveOccurred())
 				})
 
 				It("should not have pending messages", func() {
-					_, readErr := wrapper.PendingMessage(group)
+					pendResp, readErr := wrapper.PendingMessage(group)
+					Expect(pendResp).To(BeNil())
 					Expect(readErr).To(HaveOccurred())
 				})
 			})
 
 			Context("When a group exists", func() {
 
-				var cliAddGrpResponse string
-				var errAddGrp error
-
 				BeforeEach(func() {
-					cliAddGrpResponse, errAddGrp = wrapper.CreateGroup(group, "$")
+					cliAddGrpResponse, errAddGrp := wrapper.CreateGroup(group, "$")
+					Expect(cliAddGrpResponse).To(Equal("OK"))
+					Expect(errAddGrp).ToNot(HaveOccurred())
 				})
 
 				AfterEach(func() {
-					_, _ = wrapper.DeleteGroup(group)
-				})
-
-				It("should have created a new group", func() {
-					Expect(cliAddGrpResponse).To(Equal("OK"))
-					Expect(errAddGrp).ToNot(HaveOccurred())
+					respCmd := wrapper.Client.FlushAll()
+					Expect(respCmd.Err()).ToNot(HaveOccurred())
 				})
 
 				It("should fail to create same group", func() {
@@ -193,12 +178,6 @@ var _ = Describe("Redis", func() {
 							MatchError("BUSYGROUP Consumer Group name already exists"),
 						),
 					)
-				})
-
-				It("should delete the group", func() {
-					delGrp, errDelGrp := wrapper.DeleteGroup(group)
-					Expect(delGrp).To(Equal(int64(1)))
-					Expect(errDelGrp).ToNot(HaveOccurred())
 				})
 
 				It("should fail to acknowledge malformed message ID", func() {
@@ -223,27 +202,46 @@ var _ = Describe("Redis", func() {
 		Context("When Redis stream channel is filled", func() {
 
 			message := map[string]interface{}{"foo": "bar"}
-			var msgId string
+			var errAddMsg error
 
 			BeforeEach(func() {
-				msgId, _ = wrapper.AddMessage(message)
+				_, errAddMsg = wrapper.AddMessage(message)
+				Expect(errAddMsg).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				respCmd := wrapper.Client.FlushAll()
+				Expect(respCmd.Err()).ToNot(HaveOccurred())
 			})
 
 			It("should read message", func() {
-				msg, readErr := wrapper.ReadMessage("$", 1, 100*time.Millisecond)
+				msg, readErr := wrapper.ReadMessage("0", 1, 10*time.Millisecond)
 				Expect(readErr).ToNot(HaveOccurred())
-				Expect(msg).To(
-					SatisfyAll(
-						HaveLen(1),
-						ContainElement(message),
-					),
-				)
+				Expect(msg).To(HaveLen(1))
 			})
 
-			It("should delete message", func() {
-				nbMsg, readErr := wrapper.DeleteMessage(msgId)
-				Expect(nbMsg).To(Equal(int64(1)))
-				Expect(readErr).ToNot(HaveOccurred())
+			Context("When a group exists", func() {
+
+				BeforeEach(func() {
+					createGrp, errCreateGrp := wrapper.CreateGroup(group, "$")
+					Expect(createGrp).To(Equal("OK"))
+					Expect(errCreateGrp).ToNot(HaveOccurred())
+
+					_, errAddMsg = wrapper.AddMessage(message)
+					Expect(errAddMsg).ToNot(HaveOccurred())
+				})
+
+				AfterEach(func() {
+					respCmd := wrapper.Client.FlushAll()
+					Expect(respCmd.Err()).ToNot(HaveOccurred())
+				})
+
+				It("should read group message", func() {
+					msgs, errReadGrp := wrapper.ReadGroupMessage(group, 1, 100*time.Millisecond)
+					Expect(msgs).To(HaveLen(1))
+					Expect(errReadGrp).ToNot(HaveOccurred())
+				})
+
 			})
 		})
 	})

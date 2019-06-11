@@ -15,6 +15,7 @@ import (
 
 const ENV_DIR = "../../.env"
 const STREAM = "intra-new-outbound-vgm"
+const CONSUMER_NAME = STREAM + "-consumer"
 const BUCKET_NAME = "development-buyco-app-uploads"
 const STORE_PATH = "/outbound/test/"
 
@@ -32,6 +33,7 @@ func main() {
 				DB:   uint8(redisDb),
 			},
 			STREAM,
+			CONSUMER_NAME,
 		)
 		if wrapperErr != nil {
 			log.Fatalf("Redis read error: %v", wrapperErr)
@@ -74,8 +76,10 @@ func main() {
 			}
 		}
 	}()
-
-	awsManager := clients.NewAWSManager(uint8(3))
+	var awsConfig = &aws.Config{
+		MaxRetries: aws.Int(2),
+	}
+	awsManager := clients.NewAWSManager(awsConfig)
 	s3Bucket := awsManager.S3Manager.AddS3BucketManager(BUCKET_NAME)
 
 	for {

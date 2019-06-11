@@ -16,6 +16,7 @@ import (
 
 const ENV_DIR = "../../.env"
 const STREAM = "intra-new-outbound-vgm"
+const CONSUMER_NAME = STREAM + "-consumer"
 const OUTBOUND_VGM_DIR = "./outbound/vgm/"
 
 func main() {
@@ -78,6 +79,7 @@ func main() {
 			DB:   uint8(redisDb),
 		},
 		STREAM,
+		CONSUMER_NAME,
 	)
 	defer func() {
 		err := redisCli.Client.Close()
