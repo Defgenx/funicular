@@ -12,6 +12,37 @@ import (
 	"time"
 )
 
+func NewSSHConfig(user string, password string) *ssh.ClientConfig {
+	return &ssh.ClientConfig{
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         2 * time.Second,
+	}
+}
+
+func NewSSHClient(host string, port uint32, sshConfig *ssh.ClientConfig) (*ssh.Client, error) {
+	addr := fmt.Sprintf("%s:%d", host, port)
+	conn, err := ssh.Dial("tcp", addr, sshConfig)
+
+	if err != nil {
+		err = utils.ErrorPrintf("unable to connect to [%s]: %v", addr, err)
+		return nil, err
+	}
+	return conn, err
+}
+
+func NewSFTPClient(sshClient *ssh.Client) (*sftp.Client, error) {
+	client, err := sftp.NewClient(sshClient)
+	if err != nil {
+		err = utils.ErrorPrintf("unable to start sftp subsytem: %v", err)
+		return nil, err
+	}
+	return client, err
+}
+
+//------------------------------------------------------------------------------
+
 // Manager SFTP connections structure
 type SFTPManager struct {
 	host      string
@@ -24,45 +55,39 @@ type SFTPManager struct {
 }
 
 // SFTP Manager Construct
-func NewSFTPManager(host string, port uint32, user string, password string) *SFTPManager {
-	config := &ssh.ClientConfig{
-		User:            user,
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         2 * time.Second,
-	}
+func NewSFTPManager(host string, port uint32, sshConfig *ssh.ClientConfig) *SFTPManager {
 	return &SFTPManager{
 		host:      host,
 		port:      port,
-		user:      user,
-		password:  password,
 		Conns:     make([]*SFTPWrapper, 0),
-		sshConfig: config,
+		sshConfig: sshConfig,
 		log:       log.New(os.Stdout, "SFTPManager", log.Ldate|log.Ltime|log.Lshortfile),
 	}
 }
 
 func (sm *SFTPManager) AddClient() (*SFTPWrapper, error) {
-	sshConn, sftpConn := sm.newConnections()
+	sshConn, sftpConn, err := sm.newConnections()
+	if err != nil {
+		return nil, err
+	}
 	sftpStrut := NewSFTPWrapper(sshConn, sftpConn)
 	go sm.reconnect(sftpStrut)
 	sm.Conns = append(sm.Conns, sftpStrut)
-	return sftpStrut, nil
+	return sftpStrut, err
 }
 
 // Private method to create ssh and sftp clients
-func (sm *SFTPManager) newConnections() (*ssh.Client, *sftp.Client) {
-	addr := fmt.Sprintf("%s:%d", sm.host, sm.port)
-	conn, err := ssh.Dial("tcp", addr, sm.sshConfig)
+func (sm *SFTPManager) newConnections() (*ssh.Client, *sftp.Client, error) {
+	sshConn, err := NewSSHClient(sm.host, sm.port, sm.sshConfig)
 	if err != nil {
-		log.Fatalf("unable to connect to [%s]: %v", addr, err)
+		return sshConn, nil, err
 	}
-	client, err := sftp.NewClient(conn)
+	sftpConn, err := NewSFTPClient(sshConn)
 	if err != nil {
-		log.Fatalf("unable to start sftp subsytem: %v", err)
+		return nil, sftpConn, err
 	}
 
-	return conn, client
+	return sshConn, sftpConn, err
 }
 
 // Private method to handle reconnect on error / close / timeout
@@ -78,8 +103,10 @@ func (sm *SFTPManager) reconnect(c *SFTPWrapper) {
 		break
 	case res := <-closed:
 		sm.log.Printf("Connection closed, reconnecting: %s", res)
-		sshConn, sftpConn := sm.newConnections()
-
+		sshConn, sftpConn, err := sm.newConnections()
+		if err != nil {
+			log.Fatal(err)
+		}
 		atomic.AddUint64(&c.reconnects, 1)
 		c.Lock()
 		c.connection = sshConn

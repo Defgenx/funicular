@@ -7,16 +7,17 @@ import (
 	"os"
 )
 
-func LoadEnvFile(envFile string, runningEnv string) {
+func LoadEnvFile(envFile string, runningEnv string) error {
 	allowedRunningEnv := []string{"development"}
 	exists, _ := InArray(runningEnv, allowedRunningEnv)
 	if exists {
 		path, _ := os.Getwd()
 		err := godotenv.Load(fmt.Sprintf("%s/%s", path, envFile))
 		if err != nil {
-			log.Fatal("Error loading environment file")
+			return ErrorPrint("Error loading environment file")
 		}
 	} else {
 		log.Print("Environment file not loaded for the current env")
 	}
+	return nil
 }

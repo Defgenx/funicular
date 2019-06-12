@@ -31,8 +31,10 @@ func main() {
 		sftpManager := clients.NewSFTPManager(
 			os.Getenv("INTRA_HOST"),
 			port,
-			os.Getenv("INTRA_USER"),
-			os.Getenv("INTRA_PASSWORD"),
+			clients.NewSSHConfig(
+				os.Getenv("INTRA_USER"),
+				os.Getenv("INTRA_PASSWORD"),
+			),
 		)
 		sftpConn, err := sftpManager.AddClient()
 		if err != nil {
@@ -82,7 +84,7 @@ func main() {
 		CONSUMER_NAME,
 	)
 	defer func() {
-		err := redisCli.Client.Close()
+		err := redisCli.Close()
 		if err != nil {
 			log.Fatalf("Failed to close redis client: %v", err)
 		}

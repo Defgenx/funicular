@@ -40,7 +40,7 @@ func main() {
 		}
 
 		defer func() {
-			err := redisCli.Client.Close()
+			err := redisCli.Close()
 			if err != nil {
 				log.Fatalf("Failed to close redis client: %v", err)
 			}
@@ -79,13 +79,12 @@ func main() {
 	var awsConfig = &aws.Config{
 		MaxRetries: aws.Int(2),
 	}
-	awsManager := clients.NewAWSManager(awsConfig)
-	s3Bucket := awsManager.S3Manager.AddS3BucketManager(BUCKET_NAME)
-
+	awsManager := clients.NewAWSManager(clients.NewAWSSession(awsConfig))
+	s3Bucket := awsManager.S3Manager.Add(BUCKET_NAME)
 	for {
 		select {
 		case fileData := <-fileChan:
-			result, err := s3Bucket.UploadFile(
+			result, err := s3Bucket.Upload(
 				STORE_PATH,
 				fileData.Values["filename"].(string),
 				strings.NewReader(fileData.Values["fileData"].(string)),
@@ -93,7 +92,7 @@ func main() {
 			if err != nil {
 				log.Printf("Failed to upload file, %v", err)
 			} else {
-				log.Printf("File uploaded to, %s\n", aws.StringValue(&result.Location))
+				log.Printf("File uploaded to, %s\n", aws.StringValue(&result))
 				s3Chan <- fileData.ID
 			}
 		}

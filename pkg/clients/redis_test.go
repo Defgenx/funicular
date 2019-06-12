@@ -4,7 +4,6 @@ import (
 	"github.com/defgenx/funicular/internal/utils"
 	. "github.com/defgenx/funicular/pkg/clients"
 
-	"github.com/go-redis/redis"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"os"
@@ -105,7 +104,6 @@ var _ = Describe("Redis", func() {
 
 			It("should create a valid instance", func() {
 				Expect(nilErr).ToNot(HaveOccurred())
-				Expect(wrapper.Client).To(BeAssignableToTypeOf(&redis.Client{}))
 				Expect(wrapper.GetChannel()).To(Equal("test-channel"))
 			})
 
@@ -141,6 +139,26 @@ var _ = Describe("Redis", func() {
 				Expect(readErr).ToNot(HaveOccurred())
 			})
 
+			It("should flush DB", func() {
+				response, flushErr := wrapper.FlushDB()
+				Expect(flushErr).ToNot(HaveOccurred())
+				Expect(response).To(Equal("OK"))
+
+				response, flushErr = wrapper.FlushDBAsync()
+				Expect(flushErr).ToNot(HaveOccurred())
+				Expect(response).To(Equal("OK"))
+			})
+
+			It("should flush all", func() {
+				response, flushErr := wrapper.FlushAll()
+				Expect(flushErr).ToNot(HaveOccurred())
+				Expect(response).To(Equal("OK"))
+
+				response, flushErr = wrapper.FlushDBAsync()
+				Expect(flushErr).ToNot(HaveOccurred())
+				Expect(response).To(Equal("OK"))
+			})
+
 			Context("When no group exists", func() {
 
 				It("should not have messages to acknowledge", func() {
@@ -165,8 +183,8 @@ var _ = Describe("Redis", func() {
 				})
 
 				AfterEach(func() {
-					respCmd := wrapper.Client.FlushAll()
-					Expect(respCmd.Err()).ToNot(HaveOccurred())
+					_, flushErr := wrapper.FlushAll()
+					Expect(flushErr).ToNot(HaveOccurred())
 				})
 
 				It("should fail to create same group", func() {
@@ -210,8 +228,8 @@ var _ = Describe("Redis", func() {
 			})
 
 			AfterEach(func() {
-				respCmd := wrapper.Client.FlushAll()
-				Expect(respCmd.Err()).ToNot(HaveOccurred())
+				_, flushErr := wrapper.FlushAll()
+				Expect(flushErr).ToNot(HaveOccurred())
 			})
 
 			It("should read message", func() {
@@ -232,8 +250,8 @@ var _ = Describe("Redis", func() {
 				})
 
 				AfterEach(func() {
-					respCmd := wrapper.Client.FlushAll()
-					Expect(respCmd.Err()).ToNot(HaveOccurred())
+					_, flushErr := wrapper.FlushAll()
+					Expect(flushErr).ToNot(HaveOccurred())
 				})
 
 				It("should read group message", func() {

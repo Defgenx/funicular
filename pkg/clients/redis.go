@@ -62,7 +62,7 @@ func (rw *RedisManager) Close() error {
 	if len(manageClientsCopy) > 0 {
 		for category, clients := range manageClientsCopy {
 			for _, client := range clients {
-				err := client.Client.Close()
+				err := client.Close()
 				if err != nil {
 					return utils.ErrorPrintf("an error occurred while closing client connexion pool: %v", err)
 				}
@@ -88,7 +88,7 @@ func (rw *RedisManager) add(redisWrapper *RedisWrapper, category string) {
 //------------------------------------------------------------------------------
 
 type RedisWrapper struct {
-	Client       *redis.Client
+	client       *redis.Client
 	config       *RedisConfig
 	channel      string
 	consumerName string
@@ -105,7 +105,7 @@ func NewRedisWrapper(config RedisConfig, channel string, consumerName string) (*
 	}
 	client := redis.NewClient(config.ToOption())
 	return &RedisWrapper{
-		Client:       client,
+		client:       client,
 		config:       &config,
 		channel:      channel,
 		consumerName: consumerName,
@@ -118,7 +118,7 @@ func (w *RedisWrapper) AddMessage(data map[string]interface{}) (string, error) {
 		Stream: w.channel,
 		Values: data,
 	}
-	result := w.Client.XAdd(xAddArgs)
+	result := w.client.XAdd(xAddArgs)
 	return result.Result()
 }
 
@@ -132,7 +132,7 @@ func (w *RedisWrapper) ReadMessage(lastId string, count int64, block time.Durati
 		Count:   count,
 		Block:   block,
 	}
-	result := w.Client.XRead(xReadArgs)
+	result := w.client.XRead(xReadArgs)
 	return result.Result()
 }
 
@@ -155,7 +155,7 @@ func (w *RedisWrapper) ReadGroupMessage(group string, count int64, block time.Du
 		Block:    block,
 		NoAck:    false,
 	}
-	result := w.Client.XReadGroup(xReadGroupArgs)
+	result := w.client.XReadGroup(xReadGroupArgs)
 	return result.Result()
 }
 
@@ -164,38 +164,62 @@ func (w *RedisWrapper) GetChannel() string {
 }
 
 func (w *RedisWrapper) ReadRangeMessage(start string, stop string) ([]redis.XMessage, error) {
-	result := w.Client.XRange(w.channel, start, stop)
+	result := w.client.XRange(w.channel, start, stop)
 	return result.Result()
 }
 
 func (w *RedisWrapper) DeleteMessage(ids ...string) (int64, error) {
-	result := w.Client.XDel(w.channel, ids...)
+	result := w.client.XDel(w.channel, ids...)
 	return result.Result()
 }
 
 func (w *RedisWrapper) CreateGroup(group string, start string) (string, error) {
 	// MKSTREAM is not documented in Redis and allow to create stream if it is not created beforehand
-	result := w.Client.XGroupCreateMkStream(w.channel, group, start)
+	result := w.client.XGroupCreateMkStream(w.channel, group, start)
 	return result.Result()
 }
 
 func (w *RedisWrapper) DeleteGroup(group string) (int64, error) {
-	result := w.Client.XGroupDestroy(w.channel, group)
+	result := w.client.XGroupDestroy(w.channel, group)
 	return result.Result()
 }
 
 func (w *RedisWrapper) PendingMessage(group string) (*redis.XPending, error) {
-	result := w.Client.XPending(w.channel, group)
+	result := w.client.XPending(w.channel, group)
 	return result.Result()
 }
 
 func (w *RedisWrapper) AckMessage(group string, ids ...string) (int64, error) {
-	result := w.Client.XAck(w.channel, group, ids...)
+	result := w.client.XAck(w.channel, group, ids...)
 	return result.Result()
 }
 
 func (w *RedisWrapper) DeleteGroupConsumer(group string) (int64, error) {
-	result := w.Client.XGroupDelConsumer(w.channel, group, w.consumerName)
+	result := w.client.XGroupDelConsumer(w.channel, group, w.consumerName)
+	return result.Result()
+}
+
+func (w *RedisWrapper) Close() error {
+	return w.client.Close()
+}
+
+func (w *RedisWrapper) FlushAll() (string, error) {
+	result := w.client.FlushAll()
+	return result.Result()
+}
+
+func (w *RedisWrapper) FlushAllAsync() (string, error) {
+	result := w.client.FlushAllAsync()
+	return result.Result()
+}
+
+func (w *RedisWrapper) FlushDB() (string, error) {
+	result := w.client.FlushDB()
+	return result.Result()
+}
+
+func (w *RedisWrapper) FlushDBAsync() (string, error) {
+	result := w.client.FlushDBAsync()
 	return result.Result()
 }
 

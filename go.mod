@@ -5,6 +5,7 @@ go 1.12
 require (
 	github.com/aws/aws-sdk-go v1.19.41
 	github.com/go-redis/redis v6.15.2+incompatible
+	github.com/golang/mock v1.3.1
 	github.com/joho/godotenv v1.3.0
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/onsi/ginkgo v1.8.0

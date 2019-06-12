@@ -3,13 +3,14 @@ package clients_test
 import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/awstesting/mock"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/defgenx/funicular/internal/mock_clients"
 	. "github.com/defgenx/funicular/pkg/clients"
+	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	//. "github.com/jvshahid/mock4go"
 )
@@ -26,13 +27,14 @@ var _ = Describe("Aws", func() {
 		DisableSSL: aws.Bool(true),
 		Endpoint:   aws.String(server.URL),
 	}
+	var awsSession = NewAWSSession(awsConfig)
 
 	Describe("Using AWS Manager", func() {
 
 		var manager *AWSManager
 
 		BeforeEach(func() {
-			manager = NewAWSManager(awsConfig)
+			manager = NewAWSManager(awsSession)
 		})
 
 		Context("From constructor function", func() {
@@ -43,6 +45,10 @@ var _ = Describe("Aws", func() {
 
 			It("should contain same S3 client", func() {
 				Expect(manager.S3Manager).To(BeAssignableToTypeOf(&S3Manager{}))
+			})
+
+			It("should have no S3 clients", func() {
+				Expect(manager.S3Manager.S3).To(HaveLen(0))
 			})
 		})
 	})
@@ -57,12 +63,10 @@ var _ = Describe("Aws", func() {
 				Expect(s3Manager).To(BeAssignableToTypeOf(&S3Manager{}))
 			})
 
-			It("should have no wrapper", func() {
-				Expect(s3Manager.S3).To(HaveLen(0))
-			})
-
 			It("should have a S3 client", func() {
-				Expect(s3Manager.Client).To(BeAssignableToTypeOf(&s3.S3{}))
+				s3Wrapper := s3Manager.Add("test-bucket")
+				Expect(s3Manager.S3).To(HaveLen(1))
+				Expect(s3Wrapper).To(BeAssignableToTypeOf(&S3Wrapper{}))
 			})
 
 			//It("should upload a file", func() {
@@ -81,20 +85,31 @@ var _ = Describe("Aws", func() {
 
 	Describe("Using AWS S3 Wrapper", func() {
 
-		var s3Wrapper = NewS3Wrapper("test-bucket", mock.Session)
+		var (
+			mockCtrl *gomock.Controller
+			mockS3 *mock_clients.MockStorageAccessLayer
+		)
+
+		BeforeEach(func() {
+			mockCtrl = gomock.NewController(GinkgoT())
+			mockS3 = mock_clients.NewMockStorageAccessLayer(mockCtrl)
+		})
+
+		AfterEach(func() {
+			mockCtrl.Finish()
+		})
 
 		Context("From constructor function", func() {
 
 			It("should create a valid instance", func() {
+				s3Wrapper := NewS3Wrapper("test-bucket", NewS3Client(awsSession))
 				Expect(s3Wrapper).To(BeAssignableToTypeOf(&S3Wrapper{}))
 			})
 
-			It("should have an uploader", func() {
-				Expect(s3Wrapper.Uploader).To(BeAssignableToTypeOf(&s3manager.Uploader{}))
-			})
-
-			It("should have an downloader", func() {
-				Expect(s3Wrapper.Downloader).To(BeAssignableToTypeOf(&s3manager.Downloader{}))
+			It("should not fail to call uploader", func() {
+				mockS3.EXPECT().Upload("test-path", "test-file", strings.NewReader("test-data"))
+				_, respErr := mockS3.Upload("test-path", "test-file", strings.NewReader("test-data"))
+				Expect(respErr).ToNot(HaveOccurred())
 			})
 		})
 	})
